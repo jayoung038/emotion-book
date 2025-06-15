@@ -1,0 +1,15 @@
+# Node.js 관련
+node_modules/
+dist/
+.env
+
+# 로그 파일
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# VSCode 관련
+.vscode/
+
+# macOS 시스템 파일
+.DS_Store
