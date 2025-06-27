@@ -1,4 +1,5 @@
 import { db } from '../firebase/firebaseConfig';
+import { doc, updateDoc } from 'firebase/firestore';
 import {
   collection,
   addDoc,
@@ -8,6 +9,8 @@ import {
   orderBy,
   getDocs,
 } from 'firebase/firestore';
+
+
 
 /**
  * 감정 저장
@@ -33,10 +36,25 @@ export const saveEmotion = async ({
       character_name,
       lottie_path,
       created_at: serverTimestamp(),
+      active: true,
     });
     console.log('감정 저장 성공');
   } catch (err) {
     console.error('감정 저장 실패:', err);
+  }
+};
+
+/**
+ * 감정 숲 퇴장 처리: active → false
+ */
+export const deactivateEmotion = async (emotionId: string) => {
+  try {
+    await updateDoc(doc(db, 'emotions', emotionId), {
+      active: false,
+    });
+    console.log('감정 퇴장 처리 완료');
+  } catch (err) {
+    console.error('감정 퇴장 처리 실패:', err);
   }
 };
 
