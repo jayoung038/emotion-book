@@ -54,7 +54,7 @@ const EmotionForestLoader = () => {
   }, [navigate]);
 
   const handleSelectEmotion = (e: EmotionRecord) => {
-    navigate('/forest', { state: { emotion: e } });
+    navigate('/forest', { state: { emotion: e, instanceId: Date.now() } });
   };
 
   return (

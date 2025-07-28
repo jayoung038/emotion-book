@@ -6,8 +6,9 @@ export interface EmotionRecord {
   emotion_type: EmotionType;
   reason: string;
   created_at: any;
-  likes?: number;
+  likes?: string[];
   gifts?: any[];
   positionX?: number;
   positionY?: number;
+  instanceId?: number;
 }

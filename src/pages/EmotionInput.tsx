@@ -7,6 +7,7 @@ import { saveEmotion } from '../api/emotion';
 import { mapLabelToEmotionId } from '../utils/mapLabelToEmotionId';
 import loadingAnimation from '../assets/loading.json';
 
+
 const EmotionInput = () => {
   const [text, setText] = useState('');
   const [characterName, setCharacterName] = useState<string | null>(null);

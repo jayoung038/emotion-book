@@ -2,6 +2,7 @@ import axios from 'axios';
 
 // Hugging Face API 키
 const HUGGING_FACE_API_KEY = import.meta.env.VITE_HUGGINGFACE_API_KEY;
+console.log("✅ VITE_HUGGINGFACE_API_KEY:", import.meta.env.VITE_HUGGINGFACE_API_KEY);
 
 const HUGGING_FACE_API_URL =
   'https://api-inference.huggingface.co/models/j-hartmann/emotion-english-distilroberta-base';
