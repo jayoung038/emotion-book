@@ -8,6 +8,9 @@ import { db } from '../firebase/firebaseConfig';
 import { getCurrentUserId } from '../api/auth';
 import { getAuth } from 'firebase/auth';
 import MiniMapChart from '../components/MiniMapChart';
+const clamp = (value: number, min: number, max: number) => {
+  return Math.max(min, Math.min(value, max));
+};
 
 // ⭐ 추가: 실시간 접속자(presence) 관리용
 import {
@@ -76,6 +79,55 @@ const EmotionForest = () => {
     })) as EmotionRecord[];
     setLikedEmotions(liked);
   };
+
+  useEffect(() => {
+    const forestEl = forestRef.current;
+    // 숲 div가 없거나, 아직 크기 계산이 안됐으면 실행 안 함
+    if (!forestEl || bounds.width === 0) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // 방향키를 누를 때 페이지가 스크롤되는 기본 동작 방지
+      if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(e.key.toLowerCase())) {
+        e.preventDefault();
+      }
+
+      // 'position' state를 직접 업데이트
+      setPosition((prev) => {
+        if (!prev) return null; // position이 없으면 아무것도 안 함
+
+        const step = 20;
+        const CHARACTER_WIDTH = 96;
+        const CHARACTER_HEIGHT = 96;
+        const maxX = bounds.width - CHARACTER_WIDTH;
+        const maxY = bounds.height - CHARACTER_HEIGHT;
+
+        switch (e.key.toLowerCase()) {
+          case 'arrowup':
+          case 'w':
+            return { ...prev, y: clamp(prev.y - step, 0, maxY) };
+          case 'arrowdown':
+          case 's':
+            return { ...prev, y: clamp(prev.y + step, 0, maxY) };
+          case 'arrowleft':
+          case 'a':
+            return { ...prev, x: clamp(prev.x - step, 0, maxX) };
+          case 'arrowright':
+          case 'd':
+            return { ...prev, x: clamp(prev.x + step, 0, maxX) };
+          default:
+            return prev;
+        }
+      });
+    };
+
+    // window가 아닌 forestEl(숲 div)에 이벤트 리스너 직접 등록
+    forestEl.addEventListener('keydown', handleKeyDown);
+
+    // 컴포넌트가 사라질 때 리스너 제거
+    return () => {
+      forestEl.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [position, bounds]); // position이나 bounds가 바뀔 때마다 실행
 
   // ---------------------------------------
   // (2) 미니맵 통계 계산 (기존 로직 유지)
@@ -259,7 +311,8 @@ const EmotionForest = () => {
 <div
         // ⭐ 3. 숲 컨테이너에 ref 추가
         ref={forestRef}
-        className="relative bg-[url('/forest-bg.png')] bg-cover h-full w-full"
+        tabIndex={0}
+        className="relative bg-[url('/forest-bg.png')] bg-cover h-full w-full outline-none"
         style={{ transformOrigin: 'top left' }}
       >
 
@@ -281,7 +334,7 @@ const EmotionForest = () => {
         <EmotionCreature emotion={emotion} position={position} isSelf={true} bounds={bounds} />
 
         {/* 오늘의 다른 사람 감정(기존 기능) */}
-        {otherEmotions.map((em) => {
+        {/*otherEmotions.map((em) => {
           const pos = getEmotionPosition(em.emotion_type as EmotionType);
           return (
             <EmotionCreature
@@ -292,7 +345,7 @@ const EmotionForest = () => {
               bounds={bounds}
             />
           );
-        })}
+        })*/}
 
         {/* ⭐ 5. (수정됨) 실시간 현재 접속 중인 사용자들 */}
         {players

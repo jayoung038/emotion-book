@@ -112,41 +112,6 @@ const EmotionCreature = ({ emotion, position, isSelf, bounds }: Props) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [position, bounds]); // position이나 bounds가 바뀌면 실행
 
-// 방향키 입력 이벤트
-  useEffect(() => {
-    if (!isSelf) return;
-
-    // ⭐ (수정) 중복된 선언 제거
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (bounds.width === 0 || bounds.height === 0) return;
-
-      setPos((prev) => {
-        const step = 20;
-        const maxX = bounds.width - CHARACTER_WIDTH;
-        const maxY = bounds.height - CHARACTER_HEIGHT;
-        
-        switch (e.key.toLowerCase()) {
-          case 'arrowup':
-          case 'w':
-            return { ...prev, y: clamp(prev.y - step, 0, maxY) };
-          case 'arrowdown':
-          case 's':
-            return { ...prev, y: clamp(prev.y + step, 0, maxY) };
-          case 'arrowleft':
-          case 'a':
-            return { ...prev, x: clamp(prev.x - step, 0, maxX) };
-          case 'arrowright':
-          case 'd':
-            return { ...prev, x: clamp(prev.x + step, 0, maxX) };
-          default:
-            return prev;
-        }
-      });
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isSelf, bounds, CHARACTER_WIDTH, CHARACTER_HEIGHT]);
 
 
   return (
