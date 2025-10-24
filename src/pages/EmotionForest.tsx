@@ -18,6 +18,7 @@ import {
   leaveForestRoom,
   subscribeForestPlayers,
   PlayerData,
+  updatePlayerPosition,
 } from '../api/forestPresence';
 
 const ROOM_ID = 'forest';
@@ -80,20 +81,27 @@ const EmotionForest = () => {
     setLikedEmotions(liked);
   };
 
+// ---------------------------------------
+  // ⭐ (수정) (2) 키보드 이동 로직
+  // 로컬 setPosition과 DB updatePlayerPosition을 함께 호출
+  // ---------------------------------------
   useEffect(() => {
     const forestEl = forestRef.current;
-    // 숲 div가 없거나, 아직 크기 계산이 안됐으면 실행 안 함
     if (!forestEl || bounds.width === 0) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      // 방향키를 누를 때 페이지가 스크롤되는 기본 동작 방지
+      if (document.activeElement !== forestEl) return;
       if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(e.key.toLowerCase())) {
         e.preventDefault();
       }
 
-      // 'position' state를 직접 업데이트
+      // 1. 새 위치를 계산합니다.
+      let newPos: { x: number; y: number } | null = null;
+      
+      // setPosition의 "함수형 업데이트"를 사용해야
+      // 최신 prev 값을 정확히 참조할 수 있습니다.
       setPosition((prev) => {
-        if (!prev) return null; // position이 없으면 아무것도 안 함
+        if (!prev) return null;
 
         const step = 20;
         const CHARACTER_WIDTH = 96;
@@ -104,31 +112,42 @@ const EmotionForest = () => {
         switch (e.key.toLowerCase()) {
           case 'arrowup':
           case 'w':
-            return { ...prev, y: clamp(prev.y - step, 0, maxY) };
+            newPos = { ...prev, y: clamp(prev.y - step, 0, maxY) };
+            break;
           case 'arrowdown':
           case 's':
-            return { ...prev, y: clamp(prev.y + step, 0, maxY) };
+            newPos = { ...prev, y: clamp(prev.y + step, 0, maxY) };
+            break;
           case 'arrowleft':
           case 'a':
-            return { ...prev, x: clamp(prev.x - step, 0, maxX) };
+            newPos = { ...prev, x: clamp(prev.x - step, 0, maxX) };
+            break;
           case 'arrowright':
           case 'd':
-            return { ...prev, x: clamp(prev.x + step, 0, maxX) };
+            newPos = { ...prev, x: clamp(prev.x + step, 0, maxX) };
+            break;
           default:
-            return prev;
+            newPos = prev; // 위치 변경 없음
+            break;
         }
+
+        // 2. 위치가 실제로 변경되었다면
+        if (myUserId && newPos && (newPos.x !== prev.x || newPos.y !== prev.y)) {
+          // 3. ⭐ Firestore DB에 나의 새 위치를 업데이트합니다. (핵심!)
+          updatePlayerPosition(ROOM_ID, myUserId, newPos);
+        }
+        
+        // 4. 로컬 state를 업데이트합니다. (내 화면 즉시 반영)
+        return newPos;
       });
     };
 
-    // window가 아닌 forestEl(숲 div)에 이벤트 리스너 직접 등록
     forestEl.addEventListener('keydown', handleKeyDown);
-
-    // 컴포넌트가 사라질 때 리스너 제거
     return () => {
       forestEl.removeEventListener('keydown', handleKeyDown);
     };
-  }, [position, bounds]); // position이나 bounds가 바뀔 때마다 실행
-
+    // ⭐ DEPENDENCY: myUserId를 의존성에 추가합니다.
+  }, [position, bounds, myUserId]);
   // ---------------------------------------
   // (2) 미니맵 통계 계산 (기존 로직 유지)
   // ---------------------------------------
@@ -217,67 +236,72 @@ const EmotionForest = () => {
   }, [emotion?.id]);
 
   // ---------------------------------------
-  // (7) ⭐ 새로운 부분: 실시간 Presence 처리
-  //
-  // 1) 익명 uid 얻는다
-  // 2) joinForestRoom()으로 나(내 캐릭터)를 rooms/{roomId}/players/{myUid}에 등록
-  // 3) subscribeForestPlayers()로 전체 players를 실시간 구독(setPlayers)
-  // 4) 컴포넌트 unmount 시 / 탭 닫을 때 leaveForestRoom()
+// ⭐ (수정) (7) 실시간 Presence 처리
+  // uid가 null일 경우를 대비한 방어 코드 추가
   // ---------------------------------------
   useEffect(() => {
     let mounted = true;
     let cleanupLeave: (() => void) | null = null;
+    let handleBeforeUnload: (() => void) | null = null;
 
     (async () => {
-      // 내 uid 확보
+      // 1. emotion, position 준비 확인
+      if (!emotion || !position) {
+        return;
+      }
+
+      // 2. uid 가져오기
       const uid = await getCurrentUserId();
       if (!mounted) return;
+
+      // 3. ⭐ (핵심) uid가 null인지 확인
+      if (!uid) {
+        console.error('사용자 UID를 찾을 수 없습니다. (로그인 상태 확인)');
+        // uid가 없으면 숲에 참여/퇴장할 수 없으므로 여기서 중단
+        return;
+      }
+
+      // --- 이 시점부터 uid는 절대 null이 아님 ---
       setMyUserId(uid);
 
-      // 방에 나 등록
-      // avatar / x / y 는 네 실제 캐릭터 정보에 맞춰서 바꿔도 돼
-      // 여기서는 내 현재 감정 기반 좌표(position)로 반영해주면 "내가 여기 있다" 느낌이 더 진해짐
-      const initX = position?.x ?? 200;
-      const initY = position?.y ?? 150;
-
+      // 4. 방에 나 등록
       await joinForestRoom(ROOM_ID, uid, {
-        avatar: emotion?.character_name || 'fox',
-        x: initX,
-        y: initY,
+        avatar: emotion.character_name || 'fox',
+        x: position.x,
+        y: position.y,
+        emotion: emotion,
       });
 
-      // 모든 플레이어 구독
+      // 5. 모든 플레이어 구독
       const unsubPlayers = subscribeForestPlayers(ROOM_ID, (list) => {
         setPlayers(list);
       });
 
-      // 나갈 때 호출할 함수 미리 준비
+      // 6. 나갈 때 호출할 함수들 (이제 uid가 있다는 것이 보장됨)
       cleanupLeave = () => {
         leaveForestRoom(ROOM_ID, uid);
         unsubPlayers();
       };
 
-      // 탭 닫히는 순간(브라우저 종료 등)에도 최대한 정리 시도
-      const handleBeforeUnload = () => {
+      handleBeforeUnload = () => {
         leaveForestRoom(ROOM_ID, uid);
       };
-      window.addEventListener('beforeunload', handleBeforeUnload);
 
-      // effect cleanup에서 이벤트 제거 + 퇴장
-      return () => {
-        window.removeEventListener('beforeunload', handleBeforeUnload);
-      };
+      window.addEventListener('beforeunload', handleBeforeUnload);
     })();
 
     return () => {
       mounted = false;
+      
+      // 7. cleanup 함수 호출 (if 체크는 여전히 중요)
       if (cleanupLeave) {
         cleanupLeave();
       }
+      if (handleBeforeUnload) {
+        window.removeEventListener('beforeunload', handleBeforeUnload);
+      }
     };
-    // position, emotion 등은 초기 최초 진입 기준으로만 넣고 싶으니까 dependency는 비우는게 좋아
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [emotion, position]);
 
 
   // ---------------------------------------

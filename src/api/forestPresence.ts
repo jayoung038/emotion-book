@@ -6,9 +6,30 @@ import {
   serverTimestamp,
   collection,
   onSnapshot,
+  updateDoc,
 } from 'firebase/firestore';
 import type { EmotionRecord } from '../types/emotion';
-
+// ⭐ 이 함수를 파일 하단(export 전)에 새로 추가하세요.
+/**
+ * 플레이어의 실시간 위치(x, y)를 Firestore에 업데이트합니다.
+ */
+export const updatePlayerPosition = async (
+  roomId: string,
+  userId: string,
+  newPosition: { x: number; y: number }
+) => {
+  // rooms/{roomId}/players/{userId} 문서의 참조를 가져옵니다.
+  const playerRef = doc(db, 'rooms', roomId, 'players', userId);
+  try {
+    // 'x'와 'y' 필드만 업데이트합니다.
+    await updateDoc(playerRef, {
+      x: newPosition.x,
+      y: newPosition.y,
+    });
+  } catch (error) {
+    console.error('Error updating player position:', error);
+  }
+};
 /** 캐릭터(플레이어) 타입 */
 export type PlayerData = {
   userId: string;
