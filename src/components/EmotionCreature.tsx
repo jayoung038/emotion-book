@@ -73,18 +73,22 @@ interface Props {
   emotion: EmotionRecord;
   position: { x: number; y: number };
   isSelf: boolean;
+  bounds: { width: number; height: number }; // ⭐ 1. bounds prop 타입 추가
 }
 const clamp = (value: number, min: number, max: number) => {
   return Math.max(min, Math.min(value, max));
 };
 
-const EmotionCreature = ({ emotion, position, isSelf }: Props) => {
+const EmotionCreature = ({ emotion, position, isSelf, bounds }: Props) => {
   const [showBubble, setShowBubble] = useState(false);
   // 위치 상태로 변경
   const [pos, setPos] = useState(position);
   const ref = useRef<HTMLDivElement>(null);
   const [showLikePlusOne, setShowLikePlusOne] = useState(false);
   const [hasLiked, setHasLiked] = useState(false);
+
+  const CHARACTER_WIDTH = 96;
+  const CHARACTER_HEIGHT = 96;
 
   useEffect(() => {
     const checkLiked = async () => {
@@ -95,19 +99,32 @@ const EmotionCreature = ({ emotion, position, isSelf }: Props) => {
     checkLiked();
   }, [emotion]);
 
+// ⭐ 3. (추가) 위치 보정 Effect
+  // position prop이나 bounds가 바뀔 때, 캐릭터가 숲 안에 있도록 위치를 보정합니다.
+  useEffect(() => {
+    // bounds가 유효할 때만 (0이 아닐 때) 위치 보정
+    if (bounds.width > 0 && bounds.height > 0) {
+      setPos({
+        x: clamp(position.x, 0, bounds.width - CHARACTER_WIDTH),
+        y: clamp(position.y, 0, bounds.height - CHARACTER_HEIGHT),
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [position, bounds]); // position이나 bounds가 바뀌면 실행
 
-
-  // 방향키 입력 이벤트
+// 방향키 입력 이벤트
   useEffect(() => {
     if (!isSelf) return;
 
+    // ⭐ (수정) 중복된 선언 제거
     const handleKeyDown = (e: KeyboardEvent) => {
-      const CHARACTER_WIDTH = 96;
-      const CHARACTER_HEIGHT = 96;
+      if (bounds.width === 0 || bounds.height === 0) return;
+
       setPos((prev) => {
         const step = 20;
-        const maxX = window.innerWidth - CHARACTER_WIDTH;// 우측 여유공간
-        const maxY = window.innerHeight - CHARACTER_HEIGHT;
+        const maxX = bounds.width - CHARACTER_WIDTH;
+        const maxY = bounds.height - CHARACTER_HEIGHT;
+        
         switch (e.key.toLowerCase()) {
           case 'arrowup':
           case 'w':
@@ -129,9 +146,7 @@ const EmotionCreature = ({ emotion, position, isSelf }: Props) => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isSelf]);
-
-
+  }, [isSelf, bounds, CHARACTER_WIDTH, CHARACTER_HEIGHT]);
 
 
   return (

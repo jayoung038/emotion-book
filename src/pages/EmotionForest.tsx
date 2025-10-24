@@ -1,5 +1,5 @@
 import { useLocation, Link, useNavigate } from 'react-router-dom';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef, useLayoutEffect } from 'react';
 import EmotionCreature from '../components/EmotionCreature';
 import { getEmotionPosition } from '../utils/getEmotionPosition';
 import type { EmotionRecord, EmotionType } from '../types/emotion';
@@ -24,6 +24,27 @@ const EmotionForest = () => {
   const navigate = useNavigate();
 
   const emotion = location.state?.emotion as EmotionRecord;
+
+// ⭐ 1. 숲 배경의 ref와 크기(bounds) state 추가
+  const forestRef = useRef<HTMLDivElement>(null);
+  const [bounds, setBounds] = useState({ width: 0, height: 0 });
+
+  // ⭐ 2. 숲 배경의 크기를 측정하는 effect 추가
+  // (useEffect 대신 useLayoutEffect를 사용하면 렌더링 직전에 크기를 알아내어 깜박임이 없습니다)
+  useLayoutEffect(() => {
+    const updateBounds = () => {
+      if (forestRef.current) {
+        setBounds({
+          width: forestRef.current.clientWidth,
+          height: forestRef.current.clientHeight,
+        });
+      }
+    };
+
+    updateBounds(); // 최초 1회 실행
+    window.addEventListener('resize', updateBounds); // 창 크기 변경 시에도 대응
+    return () => window.removeEventListener('resize', updateBounds);
+  }, []); // 빈 배열로 마운트 시 1회만 실행
 
   // 내 감정 위치
   const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
@@ -222,7 +243,7 @@ const EmotionForest = () => {
   //  (9) 렌더링
   // ---------------------------------------
   return (
-    <div className="relative w-screen h-screen overflow-visible">
+    <div className="relative w-screen h-screen overflow-hidden">
       {/* 배경 */}
       <div
         className="absolute inset-0 -z-10"
@@ -235,10 +256,14 @@ const EmotionForest = () => {
         }}
       ></div>
 
-      <div
+<div
+        // ⭐ 3. 숲 컨테이너에 ref 추가
+        ref={forestRef}
         className="relative bg-[url('/forest-bg.png')] bg-cover h-full w-full"
         style={{ transformOrigin: 'top left' }}
       >
+
+
         {/* 💖 내가 공감한 감정 버튼 */}
         <div className="absolute top-6 right-6 z-50">
           <button
@@ -253,7 +278,7 @@ const EmotionForest = () => {
         </div>
 
         {/* 내 캐릭터 */}
-        <EmotionCreature emotion={emotion} position={position} isSelf={true} />
+        <EmotionCreature emotion={emotion} position={position} isSelf={true} bounds={bounds} />
 
         {/* 오늘의 다른 사람 감정(기존 기능) */}
         {otherEmotions.map((em) => {
@@ -264,16 +289,36 @@ const EmotionForest = () => {
               emotion={em}
               position={pos}
               isSelf={false}
+              bounds={bounds}
             />
           );
         })}
+
+        {/* ⭐ 5. (수정됨) 실시간 현재 접속 중인 사용자들 */}
+        {players
+          .filter((p) => p.userId !== myUserId) // 내 캐릭터는 이미 위에서 그렸으므로 제외
+          .map((p) => {
+            // PlayerData에 emotion 객체가 없다면 렌더링 불가
+            if (!p.emotion) return null;
+
+            return (
+              <EmotionCreature
+                key={p.userId}
+                emotion={p.emotion}
+                position={{ x: p.x, y: p.y }} // 실시간 위치(x, y) 사용
+                isSelf={false}
+                bounds={bounds} // ⭐ 4. bounds prop 전달
+              />
+            );
+          })}
 
         {/* ⭐ 실시간 현재 접속 중인 사용자들 시각화 (option)
             players 배열에는 나도 포함돼.
             만약 이미 EmotionCreature로 비슷하게 그리고 있다면
             이 블록은 UI 데모용으로만 잠깐 써도 돼.
         */}
-        {players.map((p) => (
+
+        {/*players.map((p) => (
           <div
             key={p.userId}
             style={{
@@ -290,7 +335,7 @@ const EmotionForest = () => {
           >
             {p.avatar ?? '???'}
           </div>
-        ))}
+        ))*/}
 
         <MiniMapChart data={emotionStats} />
       </div>

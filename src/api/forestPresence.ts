@@ -7,6 +7,7 @@ import {
   collection,
   onSnapshot,
 } from 'firebase/firestore';
+import type { EmotionRecord } from '../types/emotion';
 
 /** 캐릭터(플레이어) 타입 */
 export type PlayerData = {
@@ -15,6 +16,7 @@ export type PlayerData = {
   x: number;
   y: number;
   joinedAt?: any;
+  emotion?: EmotionRecord;
 };
 
 /**
